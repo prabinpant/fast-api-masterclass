@@ -36,25 +36,49 @@ studio = {
 }
 
 
-@app.get("/health", status_code=200)
-def root():
-    return {"message": "OK"}
-
-
-def fail_id_funny(search: str):
+def fail_if_funny(search: str):
     if "lol" in search:
         raise ValueError("Being too funny?")
     return search
 
 
+search_query_validation = Query(
+    min_length=3,
+    max_length=10,
+    title="Search term",
+    description="This is a description",
+)
+
+search_Humor_ban = AfterValidator(fail_if_funny)
+
+SearchQuery = Annotated[str | None, search_query_validation, search_Humor_ban]
+
+
+@app.get("/health", status_code=200)
+def root():
+    return {"message": "OK"}
+
+
 @app.get("/rooms", status_code=200)
 def get_rooms(
     max_price: Annotated[int | None, Query(lt=10_000, gt=90)] = None,
-    search: Annotated[
-        str | None, Query(min_length=3, max_length=10), AfterValidator(fail_id_funny)
-    ] = None,
+    search: SearchQuery = None,
 ):
     collection = [apartment, house, studio]
+    return [
+        room
+        for room in collection
+        if (search == None or search.lower() in room["name"].lower())
+        and (max_price == None or room["price_per_room"] <= max_price)
+    ]
+
+
+@app.get("/rooms/mansions", status_code=200)
+def get_mansions(
+    max_price: Annotated[int | None, Query(lt=10_000, gt=90)] = None,
+    search: SearchQuery = None,
+):
+    collection = [house]
     return [
         room
         for room in collection
