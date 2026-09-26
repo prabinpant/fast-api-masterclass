@@ -1,4 +1,8 @@
-from fastapi import FastAPI
+from typing import Annotated
+
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
+from pydantic import AfterValidator
 
 app = FastAPI(
     title="Rent a room",
@@ -6,6 +10,8 @@ app = FastAPI(
     version="1.0.0",
     contact={"name": "Prabin Pant Sir", "email": "prabin20panta@gmail.com"},
 )
+
+app.mount("/files", StaticFiles(directory="assets"), name="assets")
 
 apartment = {
     "id": 1,
@@ -16,14 +22,14 @@ apartment = {
 }
 house = {
     "id": 5,
-    "name": "Sunny 2-room apartment",
+    "name": "Dwarikas",
     "price_per_room": 150,
     "bedrooms": 3,
     "bathrooms": 4,
 }
 studio = {
     "id": 10,
-    "name": "Sunny 2-room apartment",
+    "name": "Lakeside",
     "price_per_room": 400,
     "bedrooms": 1,
     "bathrooms": 2.5,
@@ -35,10 +41,26 @@ def root():
     return {"message": "OK"}
 
 
-@app.get("/rooms", status_code=200)
-def get_rooms():
+def fail_id_funny(search: str):
+    if "lol" in search:
+        raise ValueError("Being too funny?")
+    return search
 
-    return [apartment, house, studio]
+
+@app.get("/rooms", status_code=200)
+def get_rooms(
+    max_price: Annotated[int | None, Query(lt=10_000, gt=90)] = None,
+    search: Annotated[
+        str | None, Query(min_length=3, max_length=10), AfterValidator(fail_id_funny)
+    ] = None,
+):
+    collection = [apartment, house, studio]
+    return [
+        room
+        for room in collection
+        if (search == None or search.lower() in room["name"].lower())
+        and (max_price == None or room["price_per_room"] <= max_price)
+    ]
 
 
 @app.get("/rooms/{room_id}", status_code=200)
@@ -46,3 +68,5 @@ def get_room_by_id(room_id: int):
     for room in [apartment, house, studio]:
         if room["id"] == room_id:
             return room
+
+    raise HTTPException(404)
