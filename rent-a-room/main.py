@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
-from pydantic import AfterValidator
+from pydantic import BaseModel, Field, field_validator
 
 app = FastAPI(
     title="Rent a room",
@@ -36,10 +36,22 @@ studio = {
 }
 
 
-def fail_if_funny(search: str):
-    if "lol" in search:
-        raise ValueError("Being too funny?")
-    return search
+class RoomQueryParams(BaseModel):
+    max_price: int | None = Field(ge=10, le=10_000, default=None)
+    search: str | None = Field(
+        max_length=10,
+        min_length=3,
+        title="Search keyword",
+        description="Type in the keyword that you want to search from",
+        default=None,
+    )
+
+    @field_validator("search")
+    @classmethod
+    def fail_if_funny(cls, search: str) -> str:
+        if "lol" in search:
+            raise ValueError("Being too funny?")
+        return search
 
 
 search_query_validation = Query(
@@ -49,10 +61,6 @@ search_query_validation = Query(
     description="This is a description",
 )
 
-search_Humor_ban = AfterValidator(fail_if_funny)
-
-SearchQuery = Annotated[str | None, search_query_validation, search_Humor_ban]
-
 
 @app.get("/health", status_code=200)
 def root():
@@ -60,11 +68,10 @@ def root():
 
 
 @app.get("/rooms", status_code=200)
-def get_rooms(
-    max_price: Annotated[int | None, Query(lt=10_000, gt=90)] = None,
-    search: SearchQuery = None,
-):
+def get_rooms(params: Annotated[RoomQueryParams, Query()]):
     collection = [apartment, house, studio]
+    search = params.search
+    max_price = params.max_price
     return [
         room
         for room in collection
@@ -74,11 +81,10 @@ def get_rooms(
 
 
 @app.get("/rooms/mansions", status_code=200)
-def get_mansions(
-    max_price: Annotated[int | None, Query(lt=10_000, gt=90)] = None,
-    search: SearchQuery = None,
-):
+def get_mansions(params: Annotated[RoomQueryParams, Query()]):
     collection = [house]
+    search = params.search
+    max_price = params.max_price
     return [
         room
         for room in collection
